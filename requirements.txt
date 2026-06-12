@@ -1,0 +1,3 @@
+python-snap7>=3.0
+PyQt6>=6.5
+pyqtgraph>=0.13
