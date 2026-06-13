@@ -12,11 +12,11 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QSplitter, QStatusBar, QMenuBar, QMenu, QToolBar,
     QMessageBox, QFileDialog, QLabel, QFrame, QApplication,
-    QScrollArea
+    QScrollArea, QPushButton, QSystemTrayIcon, QStyle
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QShortcut, QKeySequence
-from PyQt6.QtGui import QAction, QIcon, QFont
+from PyQt6.QtGui import QAction, QIcon, QFont, QPixmap, QColor, QPainter
 
 from tag_config import TagConfig, DataType, Area, TagQuality, parse_address
 from plc_worker import PlcWorker
@@ -88,6 +88,13 @@ class S7App(QMainWindow):
         self._shortcut_f11 = QShortcut(QKeySequence(Qt.Key.Key_F11), self)
         self._shortcut_f11.setContext(Qt.ShortcutContext.ApplicationShortcut)
         self._shortcut_f11.activated.connect(self._toggle_fullscreen)
+
+        # ── 系统托盘 ──
+        self._setup_tray()
+
+        # ── 全屏悬浮控制栏 ──
+        self._fs_controls = self._make_fs_controls()
+        self._fs_controls.setVisible(False)
 
         # ── 加载配置 ──
         self._load_config()
@@ -207,9 +214,10 @@ class S7App(QMainWindow):
     # ═══════════════════════════════════════════════════
 
     def _setup_toolbar(self):
-        toolbar = QToolBar("主工具栏")
-        toolbar.setMovable(False)
-        self.addToolBar(toolbar)
+        self._tb = QToolBar("主工具栏")
+        self._tb.setMovable(False)
+        self.addToolBar(self._tb)
+        toolbar = self._tb  # 局部别名
 
         # 连接按钮
         # 连接按钮
@@ -399,24 +407,128 @@ class S7App(QMainWindow):
         super().changeEvent(event)
 
     def closeEvent(self, event):
+        """关闭 → 最小化到托盘"""
+        self._save_config()
+        self.hide()
+        self._tray.showMessage(
+            APP_NAME, "已最小化到系统托盘，右键托盘图标退出",
+            QSystemTrayIcon.MessageSeverity.Information, 2000
+        )
+        event.ignore()
+
+    def _quit_app(self):
+        """真正退出"""
         self._save_config()
         if self.plc_worker.isRunning():
             self.plc_worker.stop()
-        event.accept()
+        self._tray.hide()
+        QApplication.instance().quit()
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_F11:
             self._toggle_fullscreen()
         elif event.key() == Qt.Key.Key_Escape and self.isFullScreen():
-            self.showNormal()
+            self._toggle_fullscreen()
         else:
             super().keyPressEvent(event)
 
     def _toggle_fullscreen(self):
         if self.isFullScreen():
             self.showNormal()
+            self._fs_controls.setVisible(False)
+            self.menuBar().setVisible(True)
+            self._tb.setVisible(True)
         else:
+            self.menuBar().setVisible(False)
+            self._tb.setVisible(False)
             self.showFullScreen()
+            self._fs_controls.setVisible(True)
+            self._position_fs_controls()
+
+    # ── 系统托盘 ────────────────────────────────────────
+
+    def _setup_tray(self):
+        """创建系统托盘图标和菜单"""
+        self._tray = QSystemTrayIcon(self)
+        # 简单 16x16 icon
+        pix = QPixmap(32, 32)
+        pix.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pix)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setBrush(QColor("#3078d8"))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawEllipse(2, 2, 28, 28)
+        p.setBrush(QColor("#ffffff"))
+        p.drawRect(10, 6, 4, 20)
+        p.drawRect(16, 10, 6, 12)
+        p.end()
+        self._tray.setIcon(QIcon(pix))
+
+        tray_menu = QMenu()
+        tray_menu.addAction("显示窗口", self._show_from_tray)
+        tray_menu.addSeparator()
+        tray_menu.addAction("退出", self._quit_app)
+        self._tray.setContextMenu(tray_menu)
+        self._tray.activated.connect(
+            lambda reason: self._show_from_tray()
+            if reason == QSystemTrayIcon.ActivationReason.DoubleClick else None
+        )
+        self._tray.setToolTip(APP_NAME)
+        self._tray.show()
+
+    def _show_from_tray(self):
+        self.showNormal()
+        self.activateWindow()
+        self.raise_()
+
+    # ── 全屏悬浮控件 ────────────────────────────────────
+
+    def _make_fs_controls(self) -> QWidget:
+        """全屏右上角：最小化 / 关闭 按钮"""
+        c = current()
+        bar = QWidget(self)
+        bar.setObjectName("fsControls")
+        bar.setFixedHeight(36)
+        bar.setStyleSheet(
+            f"QWidget#fsControls {{ background: {c.bg_panel}; border-radius: 6px; }}"
+        )
+
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(4, 2, 4, 2)
+        lay.setSpacing(6)
+
+        btn_style = (
+            "QPushButton { background: transparent; border: none; color: %s; "
+            "font-size: 16px; padding: 4px 10px; border-radius: 4px; }"
+            "QPushButton:hover { background: %s; }"
+        )
+
+        btn_min = QPushButton("─")
+        btn_min.setToolTip("最小化")
+        btn_min.setStyleSheet(btn_style % (c.text_primary, c.border))
+        btn_min.clicked.connect(lambda: self.showMinimized())
+        lay.addWidget(btn_min)
+
+        btn_close = QPushButton("✕")
+        btn_close.setToolTip("退出全屏")
+        btn_close.setStyleSheet(btn_style % (c.text_primary, c.danger) +
+                                "QPushButton:hover { background: %s; color: #fff; }" % c.danger)
+        btn_close.clicked.connect(self._toggle_fullscreen)
+        lay.addWidget(btn_close)
+
+        return bar
+
+    def _position_fs_controls(self):
+        """全屏控件定位右上角"""
+        bar = self._fs_controls
+        bar.setFixedWidth(120)
+        bar.move(self.width() - bar.width() - 12, 8)
+        bar.raise_()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self.isFullScreen():
+            self._position_fs_controls()
 
     # ── 主题切换 ────────────────────────────────────────
     _light = True  # 默认浅色模式
