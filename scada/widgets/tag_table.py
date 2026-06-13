@@ -237,11 +237,14 @@ class ValueDashboard(QWidget):
         # 卡片滚动区
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
-        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.scroll.setFixedHeight(112)
+        self.scroll.setFixedHeight(116)
         self.scroll.setStyleSheet(
             "QScrollArea { background-color: transparent; border: none; }"
+            "QScrollBar:horizontal { height: 6px; background: transparent; }"
+            "QScrollBar::handle:horizontal { background: rgba(128,128,128,0.3); border-radius: 3px; min-width: 30px; }"
+            "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }"
         )
 
         self.card_container = QWidget()
@@ -271,37 +274,12 @@ class ValueDashboard(QWidget):
         self.setVisible(True)
         self._pulse_dot.setVisible(True)
 
-        display_tags = tags[:20]
-        for tag in display_tags:
+        for tag in tags:
             card = ValueCard(tag)
             self._cards.append(card)
             self.card_layout.insertWidget(self.card_layout.count() - 1, card)
 
-        self.count_lbl.setText(f"{len(display_tags)} 个实时值")
-
-    def set_tags(self, tags: list[TagConfig]):
-        """重建卡片"""
-        # 清除旧卡片
-        for card in self._cards:
-            self.card_layout.removeWidget(card)
-            card.deleteLater()
-        self._cards.clear()
-
-        if not tags:
-            self.setVisible(False)
-            return
-
-        self.setVisible(True)
-
-        # 最多显示 20 张卡片
-        display_tags = tags[:20]
-        for tag in display_tags:
-            card = ValueCard(tag)
-            self._cards.append(card)
-            # 插入到 stretch 之前
-            self.card_layout.insertWidget(self.card_layout.count() - 1, card)
-
-        self.count_lbl.setText(f"{len(display_tags)} 个实时值")
+        self.count_lbl.setText(f"{len(tags)} 个实时值")
 
     def update_values(self, results: list, tag_map: dict):
         """批量更新卡片值
