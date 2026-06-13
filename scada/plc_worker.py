@@ -184,31 +184,57 @@ class PlcWorker(QThread):
 
         # ── 3) 多个 SZL 尝试 ──
         szl_attempts = [
-            (0x0011, 1, "module_id"),
-            (0x0011, 6, "serial"),
-            (0x0131, 1, "firmware"),
-            (0x001C, 0, "component"),
+            (0x0011, 0, "cpu_basic"),        # CPU 基本信息
+            (0x0011, 1, "module_id"),        # 模块名 + 序列号
+            (0x0011, 6, "serial"),           # 序列号
+            (0x0011, 7, "fw_version"),       # 固件版本
+            (0x0131, 1, "fw_detail"),        # 固件详细信息
+            (0x001C, 1, "component_id"),     # 组件标识 (含 MLFB)
+            (0x0111, 1, "hw_id"),            # 硬件标识
         ]
         for ssl_id, index, label in szl_attempts:
             try:
                 szl = self._client.read_szl(ssl_id, index)
                 if szl and szl.Data:
                     data = bytes(szl.Data)
-                    # trim trailing nulls
                     text = data.rstrip(b'\x00').decode('ascii', errors='replace').strip()
-                    logger.debug(f"SZL 0x{ssl_id:04X}[{index}] ({label}): {text[:80]!r}")
-                    if label == "module_id" and not module and text:
-                        module = text
-                    elif label == "serial" and not serial and text:
-                        serial = text
-                    elif label == "firmware" and not version and text:
-                        version = text
-                    elif label == "component" and not module:
-                        # 0x001C often has format "6ES7 ..."
-                        for part in text.split():
-                            if part.startswith('6ES7'):
-                                order_code_raw = order_code_raw or part
+                    logger.debug(f"SZL 0x{ssl_id:04X}[{index}] ({label}): {text[:100]!r}")
+
+                    if label in ("module_id", "cpu_basic") and not module and text:
+                        # 提取第一个有意义文本段
+                        parts = text.replace('\x00', ' ').split()
+                        for p in parts:
+                            if len(p) > 1 and not p.startswith('6ES7'):
+                                module = p
                                 break
+                        if not module and parts:
+                            module = parts[0]
+
+                    if label == "serial" and not serial and text:
+                        serial = text
+
+                    if label in ("fw_version", "fw_detail") and not version and text:
+                        v = text.strip()
+                        if len(v) < 32:
+                            version = v
+
+                    if label in ("component_id", "hw_id"):
+                        # 查找 MLFB 订货号
+                        for token in text.replace(',', ' ').split():
+                            token = token.strip()
+                            if re.match(r'6ES7[\s-]*\d', token.upper()):
+                                order_code_raw = order_code_raw or token
+                                break
+
+                    if label == "cpu_basic" and text:
+                        # 有时直接就是 "S7-1500" 这样的文本
+                        for keyword in ('S7-1200', 'S7-1500', 'S7-300', 'S7-400',
+                                        'CPU 1511', 'CPU 1512', 'CPU 1513',
+                                        'CPU 1515', 'CPU 1516', 'CPU 1517', 'CPU 1518'):
+                            if keyword.upper() in text.upper():
+                                module = module or keyword
+                                break
+
             except Exception as e:
                 logger.debug(f"SZL 0x{ssl_id:04X}[{index}] error: {e}")
 
