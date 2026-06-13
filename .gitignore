@@ -25,5 +25,8 @@ Thumbs.db
 # Claude Code
 .claude/
 
+# External clones
+clawd-on-desk/
+
 # User config (sensitive)
 scada/s7_tags.json
