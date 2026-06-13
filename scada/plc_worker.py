@@ -289,6 +289,9 @@ class PlcWorker(QThread):
         if m:
             family_num = m.group(1)
             model = m.group(2)
+            # S7-1200/1500 型号四位数 (如 1214, 1516)，300/400 三位数 (如 315, 414)
+            if family_num in ('2', '5'):
+                return f"S7-1{family_num}{model}"
             return f"S7-{family_num}{model}"
         return mlfb
 
