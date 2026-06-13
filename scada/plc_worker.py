@@ -129,6 +129,100 @@ class PlcWorker(QThread):
         if self.isRunning():
             self.wait(5000)
 
+    # ── PLC 信息识别 ────────────────────────────────────
+
+    def _fetch_plc_info(self):
+        """尝试多种方式获取 PLC 型号 / 固件 / 序列号"""
+        module, version, serial = "", "", ""
+
+        # 1) 订货号 — 最准确，S7-1200/1500 支持
+        try:
+            oc = self._client.get_order_code()
+            code = self._decode_order_code(oc)
+            if code:
+                module = code
+            if oc.V1 or oc.V2 or oc.V3:
+                version = f"V{oc.V1}.{oc.V2}.{oc.V3}"
+        except Exception:
+            pass
+
+        # 2) CPU 信息 — S7-300/400 兼容
+        if not module:
+            try:
+                cpu = self._client.get_cpu_info()
+                for key in ('ModuleTypeName', 'ModuleName'):
+                    raw = cpu.get(key, None)
+                    if raw:
+                        name = raw.decode('utf-8', errors='replace') if isinstance(raw, bytes) else str(raw)
+                        if name and name != 'Unknown':
+                            module = name
+                            break
+                if not version:
+                    raw = cpu.get('ASName', '')
+                    if raw:
+                        version = raw.decode('utf-8', errors='replace') if isinstance(raw, bytes) else str(raw)
+                if not serial:
+                    raw = cpu.get('SerialNumber', '')
+                    if raw:
+                        serial = raw.decode('utf-8', errors='replace') if isinstance(raw, bytes) else str(raw)
+            except Exception:
+                pass
+
+        # 3) SZL 读取 — 兜底
+        if not module:
+            try:
+                szl = self._client.read_szl(0x0011, 0x0000)
+                if szl and szl.Data:
+                    data = bytes(szl.Data)
+                    idx = data.find(b'\x00')
+                    if idx > 0:
+                        module = data[:idx].decode('ascii', errors='replace').strip()
+                        remainder = data[idx+1:]
+                        idx2 = remainder.find(b'\x00')
+                        if idx2 > 0:
+                            serial = remainder[:idx2].decode('ascii', errors='replace').strip()
+            except Exception:
+                pass
+
+        if not module:
+            module = "未知型号"
+        if not version:
+            version = ""
+        if not serial:
+            serial = ""
+
+        self.plc_info.emit(module, version, serial)
+
+    @staticmethod
+    def _decode_order_code(oc) -> str:
+        """从订货号解析 PLC 系列"""
+        raw = ""
+        try:
+            raw = oc.OrderCode.decode('ascii', errors='replace').strip()
+        except Exception:
+            return ""
+
+        if not raw:
+            return ""
+
+        # 6ES7 2xx → S7-1200,  6ES7 5xx → S7-1500
+        parts = raw.upper().replace('-', ' ').split()
+        model = raw
+        for p in parts:
+            if p.startswith('2') and len(p) == 3:
+                model = f"S7-1200 ({raw})"
+                break
+            if p.startswith('5') and len(p) == 3:
+                model = f"S7-1500 ({raw})"
+                break
+            if p.startswith('3') and len(p) == 3:
+                model = f"S7-300 ({raw})"
+                break
+            if p.startswith('4') and len(p) == 3:
+                model = f"S7-400 ({raw})"
+                break
+        return model
+
     # ── 线程主循环 ──────────────────────────────────────
 
     def run(self):
@@ -144,22 +238,8 @@ class PlcWorker(QThread):
                                      f"rack={self._rack} slot={self._slot}")
                         self._client.connect(self._ip, self._rack, self._slot)
 
-                        # 获取 PLC 信息
-                        try:
-                            cpu = self._client.get_cpu_info()
-                            name = cpu.get('ModuleTypeName', 'Unknown').decode(
-                                'utf-8', errors='replace') if isinstance(
-                                cpu.get('ModuleTypeName'), bytes) else str(
-                                cpu.get('ModuleTypeName', 'Unknown'))
-                            serial = cpu.get('SerialNumber', 'Unknown')
-                            if isinstance(serial, bytes):
-                                serial = serial.decode('utf-8', errors='replace')
-                            version = cpu.get('ASName', '')
-                            if isinstance(version, bytes):
-                                version = version.decode('utf-8', errors='replace')
-                            self.plc_info.emit(str(name), str(version), str(serial))
-                        except Exception:
-                            self.plc_info.emit("S7-1200/1500", "V2.0+", "Unknown")
+                        # 获取 PLC 型号 / 固件 / 序列号
+                        self._fetch_plc_info()
 
                         self.connected.emit()
                         reconnect_timer = 0
