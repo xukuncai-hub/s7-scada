@@ -206,21 +206,39 @@ class PlcWorker(QThread):
                 logger.debug(f"SZL 0x{ssl_id:04X}[{index}] clean: {clean_text[:120]!r}")
 
                 # ── 从整段原文中提取 MLFB ──
-                mlfb_match = re.search(r'6ES7[\s\-]*\d[\s\-]*\d{2}[\s\-]*[0-9A-Za-z]+(?:[\s\-]+[0-9A-Za-z]+)*', clean_text)
-                if mlfb_match and not order_code_raw:
-                    raw_mlfb = mlfb_match.group(0)
-                    order_code_raw = re.sub(r'\s+', '', raw_mlfb)  # 去空格，保留连字符
-                    if not module:
-                        module = self._mlfb_to_name(order_code_raw)
-
-                # ── 从段中提取 ──
-                for seg in segments:
-                    m = re.search(r'6ES7[\s\-]*\d[\s\-]*\d{2}[\s\-]*[0-9A-Za-z]+(?:[\s\-]+[0-9A-Za-z]+)*', seg.upper())
-                    if m and not order_code_raw:
-                        raw_mlfb = m.group(0)
-                        order_code_raw = re.sub(r'\s+', '', raw_mlfb)
+                for match_text in [clean_text] + segments:
+                    # 找 6ES7 开头
+                    idx = match_text.upper().find('6ES7')
+                    if idx < 0:
+                        continue
+                    tail = match_text[idx:]
+                    # 取 6ES7 + 最多 25 字符 (MLFB 典型长度 ~19)
+                    raw = tail[:25].replace(' ', '').replace('-', '')
+                    # 如果内含第二个 6ES7，在它前面截断
+                    second = raw[4:].upper().find('6ES7')
+                    if second > 0:
+                        raw = raw[:second + 4]
+                    # 验证：必须以 6ES7 + digit + 2 digits 开头
+                    if re.match(r'6ES7\d{3}', raw):
+                        order_code_raw = raw
                         if not module:
                             module = self._mlfb_to_name(order_code_raw)
+                        break
+
+                for seg in segments:
+                    idx = seg.upper().find('6ES7')
+                    if idx < 0:
+                        continue
+                    tail = seg[idx:]
+                    raw = tail[:25].replace(' ', '').replace('-', '')
+                    second = raw[4:].upper().find('6ES7')
+                    if second > 0:
+                        raw = raw[:second + 4]
+                    if re.match(r'6ES7\d{3}', raw) and not order_code_raw:
+                        order_code_raw = raw
+                        if not module:
+                            module = self._mlfb_to_name(order_code_raw)
+                        break
 
                     # 固件版本
                     if not version:
