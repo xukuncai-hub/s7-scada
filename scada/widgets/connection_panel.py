@@ -278,22 +278,22 @@ class ConnectionPanel(QGroupBox):
         self.led = LedIndicator()
         card_layout.addWidget(self.led)
 
-        # IP + 状态
+        # IP + 状态 + 型号信息 (竖排)
         text_col = QVBoxLayout()
         text_col.setSpacing(2)
         self.ip_display = QLabel("192.168.0.1")
         self.ip_display.setObjectName("ipDisplay")
         text_col.addWidget(self.ip_display)
 
-        self.status_label = QLabel(" 未连接")
+        self.status_label = QLabel("未连接")
         self.status_label.setObjectName("statusDisconnected")
         text_col.addWidget(self.status_label)
-        card_layout.addLayout(text_col)
-        card_layout.addStretch()
 
         self.plc_type_label = QLabel("")
-        self.plc_type_label.setStyleSheet(f"color:{current().text_dim}; font-size:10.5px; font-weight:500;")
-        card_layout.addWidget(self.plc_type_label)
+        self.plc_type_label.setStyleSheet(f"color:{current().text_dim}; font-size:10px; font-weight:500;")
+        self.plc_type_label.setWordWrap(True)
+        text_col.addWidget(self.plc_type_label)
+        card_layout.addLayout(text_col, stretch=1)
 
         layout.addWidget(card)
 
