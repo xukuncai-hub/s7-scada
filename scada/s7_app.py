@@ -431,19 +431,34 @@ class S7App(QMainWindow):
     def _toggle_fullscreen(self):
         if self._fullscreen:
             self._fullscreen = False
-            self.setWindowTitle(self._saved_title)
+            self._fs_controls.hide()
             self.showNormal()
             self.menuBar().setVisible(True)
             self._tb.setVisible(True)
             self.statusBar().setVisible(True)
         else:
-            self._saved_title = self.windowTitle()
-            self.setWindowTitle(" ")
             self._fullscreen = True
             self.menuBar().setVisible(False)
             self._tb.setVisible(False)
             self.statusBar().setVisible(False)
-            self.showMaximized()
+            self.showFullScreen()
+            QTimer.singleShot(300, self._show_fs_controls)
+
+    def _show_fs_controls(self):
+        self._position_fs_controls()
+        self._fs_controls.show()
+
+    def _position_fs_controls(self):
+        bar = self._fs_controls
+        bar.adjustSize()
+        w = bar.sizeHint().width() + 12
+        screen = self.screen().availableGeometry()
+        bar.setGeometry(screen.right() - w - 6, screen.top() + 6, w, 32)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self._fullscreen:
+            self._position_fs_controls()
 
     # ── 系统托盘 ────────────────────────────────────────
 
@@ -484,9 +499,14 @@ class S7App(QMainWindow):
     # ── 全屏悬浮控件 ────────────────────────────────────
 
     def _make_fs_controls(self) -> QWidget:
-        """全屏右上角按钮栏 — 直接画在窗口上"""
+        """全屏右上角按钮 — ToolTip 窗口浮在所有窗口之上"""
         c = current()
-        bar = QWidget(self)
+        bar = QWidget()
+        bar.setWindowFlags(
+            Qt.WindowType.ToolTip |
+            Qt.WindowType.FramelessWindowHint
+        )
+        bar.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
         bar.setObjectName("fsControls")
         bar.setStyleSheet(
             f"QWidget#fsControls {{ background: {c.bg_panel}; border: 1px solid {c.border}; border-radius: 8px; }}"
