@@ -262,7 +262,12 @@ class PlcWorker(QThread):
 
         # 格式化显示：S7-1516 (6ES7516-3AN01-0AB0)
         if order_code_raw and module != "未知型号":
-            module = f"{module} ({order_code_raw})"
+            display_code = order_code_raw
+            # 尝试加回 Siemens 标准连字符: 6ES75163AN010AB0 → 6ES7 516-3AN01-0AB0
+            m = re.match(r'(6ES7)(\d)(\d{2})(.{5})(.{4})', order_code_raw)
+            if m:
+                display_code = f"{m.group(1)} {m.group(2)}{m.group(3)}-{m.group(4)}-{m.group(5)}"
+            module = f"{module} ({display_code})"
 
         logger.info(f"PLC: {module}  FW: {version or '?'}  S/N: {serial or '?'}")
         self.plc_info.emit(module, version or "", serial or "")
