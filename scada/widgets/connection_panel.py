@@ -324,22 +324,22 @@ class ConnectionPanel(QGroupBox):
         # Rack
         rack_group = QVBoxLayout()
         rack_group.setSpacing(3)
-        rack_lbl = QLabel("Rack")
+        rack_lbl = QLabel("机架")
         rack_lbl.setStyleSheet(f"color: {current().text_secondary}; font-size: 11px; font-weight: 600;")
         rack_group.addWidget(rack_lbl)
         self.rack_spin = Spinner(0, 31, 0)
-        self.rack_spin.setToolTip("S7-1200: Rack=0\nS7-1500: Rack=0")
+        self.rack_spin.setToolTip("S7-1200 → 0\nS7-1500 → 0")
         rack_group.addWidget(self.rack_spin)
         rs_row.addLayout(rack_group)
 
         # Slot
         slot_group = QVBoxLayout()
         slot_group.setSpacing(3)
-        slot_lbl = QLabel("Slot")
+        slot_lbl = QLabel("插槽")
         slot_lbl.setStyleSheet(f"color: {current().text_secondary}; font-size: 11px; font-weight: 600;")
         slot_group.addWidget(slot_lbl)
         self.slot_spin = Spinner(0, 31, 1)
-        self.slot_spin.setToolTip("S7-1200: Slot=1\nS7-1500: Slot=1")
+        self.slot_spin.setToolTip("S7-1200 → 1\nS7-1500 → 1")
         slot_group.addWidget(self.slot_spin)
         rs_row.addLayout(slot_group)
 
@@ -447,7 +447,7 @@ class ConnectionPanel(QGroupBox):
             parts.append(f"固件: {version}")
         self.plc_type_label.setText(" | ".join(parts))
         if serial:
-            self.info_label.setText(f"S/N: {serial}")
+            self.info_label.setText(f"序列号: {serial}")
 
     def set_connection_error(self, error: str):
         self.set_status(False, " 连接失败")

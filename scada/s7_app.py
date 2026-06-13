@@ -526,11 +526,11 @@ class S7App(QMainWindow):
     def _on_plc_info(self, module: str, version: str, serial: str):
         """PLC 信息更新"""
         self.connection_panel.set_plc_info(module, version, serial)
-        self.sb_plc_info.setText(f"PLC: {module} | S/N: {serial[:20]}")
-        self.setWindowTitle(
-            f"{APP_NAME} v{APP_VERSION} - {module} @ "
-            f"{self.plc_worker.ip}"
-        )
+        info = f"PLC: {module}"
+        if serial:
+            serial_short = serial[:16] if len(serial) > 16 else serial
+            info += f" | {serial_short}"
+        self.sb_plc_info.setText(info)
 
     # ═══════════════════════════════════════════════════
     #  数据更新
