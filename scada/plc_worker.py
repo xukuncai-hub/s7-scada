@@ -6,6 +6,7 @@ from PyQt6.QtCore import QThread, pyqtSignal, QMutex, QWaitCondition
 from datetime import datetime
 from typing import Any, Optional
 import logging
+import re
 
 from snap7 import Client as Snap7Client
 from snap7.error import (
@@ -132,96 +133,105 @@ class PlcWorker(QThread):
     # ── PLC 信息识别 ────────────────────────────────────
 
     def _fetch_plc_info(self):
-        """尝试多种方式获取 PLC 型号 / 固件 / 序列号"""
+        """三级抓取 PLC 信息，合并最优结果"""
         module, version, serial = "", "", ""
+        order_code_raw = ""
 
-        # 1) 订货号 — 最准确，S7-1200/1500 支持
+        # ── 1) 订货号 ──
         try:
             oc = self._client.get_order_code()
-            code = self._decode_order_code(oc)
-            if code:
-                module = code
-            if oc.V1 or oc.V2 or oc.V3:
-                version = f"V{oc.V1}.{oc.V2}.{oc.V3}"
-        except Exception:
-            pass
+            if hasattr(oc, 'OrderCode') and oc.OrderCode:
+                raw = oc.OrderCode
+                if isinstance(raw, bytes):
+                    raw = raw.decode('ascii', errors='replace').strip().rstrip('\x00')
+                else:
+                    raw = str(raw).strip()
+                order_code_raw = raw
+            v_parts = []
+            for attr in ('V1', 'V2', 'V3'):
+                v = getattr(oc, attr, 0)
+                if v is not None:
+                    v_parts.append(str(v))
+            if v_parts and any(p != '0' for p in v_parts):
+                version = "V" + ".".join(v_parts)
+        except Exception as e:
+            logger.debug(f"get_order_code failed: {e}")
 
-        # 2) CPU 信息 — S7-300/400 兼容
-        if not module:
-            try:
-                cpu = self._client.get_cpu_info()
-                for key in ('ModuleTypeName', 'ModuleName'):
-                    raw = cpu.get(key, None)
-                    if raw:
-                        name = raw.decode('utf-8', errors='replace') if isinstance(raw, bytes) else str(raw)
-                        if name and name != 'Unknown':
-                            module = name
-                            break
-                if not version:
-                    raw = cpu.get('ASName', '')
-                    if raw:
-                        version = raw.decode('utf-8', errors='replace') if isinstance(raw, bytes) else str(raw)
-                if not serial:
-                    raw = cpu.get('SerialNumber', '')
-                    if raw:
-                        serial = raw.decode('utf-8', errors='replace') if isinstance(raw, bytes) else str(raw)
-            except Exception:
-                pass
+        # ── 2) CPU Info ──
+        try:
+            cpu = self._client.get_cpu_info()
+            for key in ('ModuleTypeName', 'ModuleName'):
+                raw = cpu.get(key)
+                if raw:
+                    val = raw if isinstance(raw, str) else raw.decode('utf-8', errors='replace')
+                    val = val.strip().rstrip('\x00')
+                    if val and val.lower() != 'unknown' and len(val) > 1:
+                        module = val
+                        break
+            if not serial:
+                raw = cpu.get('SerialNumber')
+                if raw:
+                    serial = raw if isinstance(raw, str) else raw.decode('utf-8', errors='replace')
+                    serial = serial.strip().rstrip('\x00')
+            if not version:
+                raw = cpu.get('ASName')
+                if raw:
+                    v = raw if isinstance(raw, str) else raw.decode('utf-8', errors='replace')
+                    v = v.strip().rstrip('\x00')
+                    if v:
+                        version = v
+        except Exception as e:
+            logger.debug(f"get_cpu_info failed: {e}")
 
-        # 3) SZL 读取 — 兜底
-        if not module:
+        # ── 3) SZL — S7-1200/1500 补充 ──
+        if not module or not serial:
             try:
-                szl = self._client.read_szl(0x0011, 0x0000)
+                # SZL 0x0011 index 1 = 模块标识
+                szl = self._client.read_szl(0x0011, 1)
                 if szl and szl.Data:
                     data = bytes(szl.Data)
-                    idx = data.find(b'\x00')
-                    if idx > 0:
-                        module = data[:idx].decode('ascii', errors='replace').strip()
-                        remainder = data[idx+1:]
-                        idx2 = remainder.find(b'\x00')
-                        if idx2 > 0:
-                            serial = remainder[:idx2].decode('ascii', errors='replace').strip()
-            except Exception:
-                pass
+                    # 格式: 20 bytes name + 4 bytes serial
+                    name_end = data.find(b'\x00')
+                    if name_end > 0 and not module:
+                        module = data[:name_end].decode('ascii', errors='replace').strip()
+                    if not serial and len(data) > 24:
+                        ser = data[24:48]
+                        ser_end = ser.find(b'\x00')
+                        if ser_end > 0:
+                            serial = ser[:ser_end].decode('ascii', errors='replace').strip()
+            except Exception as e:
+                logger.debug(f"read_szl failed: {e}")
+
+        # ── 合成最终结果 ──
+        if order_code_raw:
+            family = self._classify_order_code(order_code_raw)
+            if family:
+                module = f"{family} ({order_code_raw})"
+            elif not module:
+                module = order_code_raw
 
         if not module:
             module = "未知型号"
-        if not version:
-            version = ""
-        if not serial:
-            serial = ""
 
-        self.plc_info.emit(module, version, serial)
+        logger.info(f"PLC identified: {module}  FW: {version or '?'}  S/N: {serial or '?'}")
+        self.plc_info.emit(module, version or "", serial or "")
 
     @staticmethod
-    def _decode_order_code(oc) -> str:
-        """从订货号解析 PLC 系列"""
-        raw = ""
-        try:
-            raw = oc.OrderCode.decode('ascii', errors='replace').strip()
-        except Exception:
-            return ""
-
-        if not raw:
-            return ""
-
-        # 6ES7 2xx → S7-1200,  6ES7 5xx → S7-1500
-        parts = raw.upper().replace('-', ' ').split()
-        model = raw
-        for p in parts:
-            if p.startswith('2') and len(p) == 3:
-                model = f"S7-1200 ({raw})"
-                break
-            if p.startswith('5') and len(p) == 3:
-                model = f"S7-1500 ({raw})"
-                break
-            if p.startswith('3') and len(p) == 3:
-                model = f"S7-300 ({raw})"
-                break
-            if p.startswith('4') and len(p) == 3:
-                model = f"S7-400 ({raw})"
-                break
-        return model
+    def _classify_order_code(code: str) -> str:
+        """6ES7 214-... → S7-1200 系列"""
+        c = code.upper().replace(' ', '').replace('-', '')
+        m = re.search(r'6ES7(\d)', c)
+        if m:
+            prefix = m.group(1)
+            if prefix == '2':
+                return 'S7-1200'
+            if prefix == '5':
+                return 'S7-1500'
+            if prefix == '3':
+                return 'S7-300'
+            if prefix == '4':
+                return 'S7-400'
+        return ""
 
     # ── 线程主循环 ──────────────────────────────────────
 
