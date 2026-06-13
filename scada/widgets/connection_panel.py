@@ -279,129 +279,110 @@ class ConnectionPanel(QGroupBox):
 
     def _setup_ui(self):
         c = current()
-        LBL = f"color: {c.text_secondary}; font-size: 10.5px; font-weight: 600;"
-        TINT = f"color: {c.text_dim}; font-size: 10px;"
+        LBL = f"color: {c.text_secondary}; font-size: 11px; font-weight: 600;"
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(0)
-        layout.setContentsMargins(10, 16, 10, 10)
+        layout.setSpacing(12)
+        layout.setContentsMargins(14, 20, 14, 12)
 
         # ═══════════════════════════════════════════
-        #  主卡片 — 所有内容都在一张卡里
+        #  LED + 状态 + IP
         # ═══════════════════════════════════════════
-        card = QFrame()
-        card.setObjectName("panelCard")
-        card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(14, 10, 14, 12)
-        card_layout.setSpacing(0)
-
-        # ── 第一段：状态头 — LED + 地址 + 状态 ──
-        head = QHBoxLayout()
-        head.setContentsMargins(0, 0, 0, 0)
-        head.setSpacing(10)
+        status_card = QFrame()
+        status_card.setObjectName("panelCard")
+        sc = QHBoxLayout(status_card)
+        sc.setContentsMargins(14, 12, 14, 12)
+        sc.setSpacing(12)
 
         self.led = LedIndicator()
-        self.led.setFixedSize(24, 24)
-        head.addWidget(self.led)
+        sc.addWidget(self.led)
 
-        addr_col = QVBoxLayout()
-        addr_col.setSpacing(1)
+        v = QVBoxLayout()
+        v.setSpacing(2)
         self.ip_display = QLabel("192.168.0.1")
         self.ip_display.setObjectName("ipDisplay")
-        addr_col.addWidget(self.ip_display)
+        v.addWidget(self.ip_display)
         self.status_label = QLabel("未连接")
         self.status_label.setObjectName("statusDisconnected")
-        addr_col.addWidget(self.status_label)
-        head.addLayout(addr_col, stretch=1)
+        v.addWidget(self.status_label)
+        sc.addLayout(v, stretch=1)
 
         self.plc_type_label = QLabel("")
-        self.plc_type_label.setStyleSheet(f"color:{c.text_dim}; font-size:9.5px;")
-        head.addWidget(self.plc_type_label)
+        self.plc_type_label.setStyleSheet(
+            f"color:{c.text_dim}; font-size:10px; font-weight:500;")
+        sc.addWidget(self.plc_type_label)
+        layout.addWidget(status_card)
 
-        card_layout.addLayout(head)
-
-        # ── 分隔 ──
-        card_layout.addSpacing(10)
-
-        # ── 第二段：IP 输入 ──
+        # ═══════════════════════════════════════════
+        #  IP 地址
+        # ═══════════════════════════════════════════
         self.ip_input = QLineEdit("192.168.0.1")
         self.ip_input.setPlaceholderText("PLC IP 地址...")
-        self.ip_input.setMinimumHeight(34)
-        self.ip_input.setStyleSheet(
-            f"QLineEdit {{ font-size: 13px; padding: 4px 10px; "
-            f"background: {c.bg_input}; border: 1px solid {c.border}; "
-            f"border-radius: 6px; color: {c.text_primary}; }}"
-        )
-        card_layout.addWidget(self.ip_input)
+        self.ip_input.setMinimumHeight(38)
+        layout.addWidget(self.ip_input)
 
-        card_layout.addSpacing(10)
-
-        # ── 第三段：Rack / Slot / 扫描 ──
+        # ═══════════════════════════════════════════
+        #  Rack / Slot / 扫描间隔
+        # ═══════════════════════════════════════════
         grid = QHBoxLayout()
-        grid.setSpacing(10)
+        grid.setSpacing(12)
 
         self.rack_spin = Spinner(0, 31, 0)
+        self.rack_spin.setToolTip("S7-1200 → 0\nS7-1500 → 0")
         grid.addWidget(self._labeled("Rack", self.rack_spin, LBL), stretch=1)
 
         self.slot_spin = Spinner(0, 31, 1)
+        self.slot_spin.setToolTip("S7-1200 → 1\nS7-1500 → 1")
         grid.addWidget(self._labeled("Slot", self.slot_spin, LBL), stretch=1)
 
         self.scan_spin = Spinner(50, 10000, 500)
-        grid.addWidget(self._labeled("扫描间隔", self.scan_spin, LBL, "ms"), stretch=2)
+        self.scan_spin.setToolTip("数据刷新间隔 (ms)")
+        grid.addWidget(self._labeled("扫描间隔", self.scan_spin, LBL), stretch=2)
+        layout.addLayout(grid)
 
-        card_layout.addLayout(grid)
+        # ═══════════════════════════════════════════
+        #  按钮
+        # ═══════════════════════════════════════════
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(10)
+        self.btn_connect = QPushButton("🔌  连接 PLC")
+        self.btn_connect.setObjectName("btnConnect")
+        self.btn_connect.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_connect.setMinimumHeight(40)
+        self.btn_connect.clicked.connect(self._on_connect_clicked)
 
-        card_layout.addSpacing(10)
-
-        # ── 第四段：按钮 ──
-        self.btn_connect = self._btn("🔌  连接 PLC", "btnConnect", self._on_connect_clicked)
-        self.btn_disconnect = self._btn("⏻  断开", "btnDisconnect", self._on_disconnect_clicked)
+        self.btn_disconnect = QPushButton("⏻  断开连接")
+        self.btn_disconnect.setObjectName("btnDisconnect")
+        self.btn_disconnect.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_disconnect.setMinimumHeight(40)
+        self.btn_disconnect.clicked.connect(self._on_disconnect_clicked)
         self.btn_disconnect.setVisible(False)
 
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(8)
         btn_row.addWidget(self.btn_connect)
         btn_row.addWidget(self.btn_disconnect)
-        card_layout.addLayout(btn_row)
+        layout.addLayout(btn_row)
 
-        layout.addWidget(card)
-
-        # ── 底部 PLC 信息 ──
+        # ═══════════════════════════════════════════
+        #  PLC 信息
+        # ═══════════════════════════════════════════
         self.info_label = QLabel("")
         self.info_label.setStyleSheet(
-            f"color: {c.text_dim}; font-size: 10px; padding: 4px 6px;")
+            f"color: {c.text_dim}; font-size: 10.5px; padding: 2px 4px;")
         self.info_label.setWordWrap(True)
         layout.addWidget(self.info_label)
 
         layout.addStretch()
 
-    def _btn(self, text: str, name: str, handler) -> QPushButton:
-        btn = QPushButton(text)
-        btn.setObjectName(name)
-        btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setMinimumHeight(36)
-        btn.clicked.connect(handler)
-        return btn
-
     @staticmethod
-    def _labeled(title: str, widget: QWidget, lbl_style: str,
-                 unit: str = "") -> QWidget:
-        """label + 控件 + 单位"""
+    def _labeled(title: str, widget: QWidget, lbl_style: str) -> QWidget:
         w = QWidget()
         w.setStyleSheet("background: transparent;")
         lay = QVBoxLayout(w)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(3)
-
-        h = QHBoxLayout()
-        h.setContentsMargins(0, 0, 0, 0)
-        h.setSpacing(0)
+        lay.setSpacing(4)
         lb = QLabel(title)
         lb.setStyleSheet(lbl_style)
-        h.addWidget(lb)
-        h.addStretch()
-        lay.addLayout(h)
-
+        lay.addWidget(lb)
         lay.addWidget(widget)
         return w
 
