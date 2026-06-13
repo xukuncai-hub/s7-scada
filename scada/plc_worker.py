@@ -289,9 +289,7 @@ class PlcWorker(QThread):
         if m:
             family_num = m.group(1)
             model = m.group(2)
-            family = {'2': 'S7-1200', '5': 'S7-1500',
-                      '3': 'S7-300', '4': 'S7-400'}.get(family_num, 'S7')
-            return f"{family} CPU {family_num}{model}"
+            return f"S7-{family_num}{model}"
         return mlfb
 
     # ── 线程主循环 ──────────────────────────────────────
