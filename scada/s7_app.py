@@ -509,19 +509,25 @@ class S7App(QMainWindow):
         btn_min.clicked.connect(lambda: self.showMinimized())
         lay.addWidget(btn_min)
 
-        btn_close = QPushButton("✕")
-        btn_close.setToolTip("退出全屏")
-        btn_close.setStyleSheet(btn_style % (c.text_primary, c.danger) +
-                                "QPushButton:hover { background: %s; color: #fff; }" % c.danger)
-        btn_close.clicked.connect(self._toggle_fullscreen)
-        lay.addWidget(btn_close)
+        btn_restore = QPushButton("◱")
+        btn_restore.setToolTip("退出全屏")
+        btn_restore.setStyleSheet(btn_style % (c.text_primary, c.border))
+        btn_restore.clicked.connect(self._toggle_fullscreen)
+        lay.addWidget(btn_restore)
+
+        btn_quit = QPushButton("✕")
+        btn_quit.setToolTip("退出软件")
+        btn_quit.setStyleSheet(btn_style % (c.text_primary, c.danger) +
+                               "QPushButton:hover { background: %s; color: #fff; }" % c.danger)
+        btn_quit.clicked.connect(self._quit_app)
+        lay.addWidget(btn_quit)
 
         return bar
 
     def _position_fs_controls(self):
         """全屏控件定位右上角"""
         bar = self._fs_controls
-        bar.setFixedWidth(120)
+        bar.setFixedWidth(150)
         bar.move(self.width() - bar.width() - 12, 8)
         bar.raise_()
 
