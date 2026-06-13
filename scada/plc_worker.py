@@ -140,69 +140,79 @@ class PlcWorker(QThread):
         # ── 1) 订货号 ──
         try:
             oc = self._client.get_order_code()
-            if hasattr(oc, 'OrderCode') and oc.OrderCode:
+            logger.debug(f"get_order_code raw: OrderCode={oc.OrderCode!r} V1={oc.V1} V2={oc.V2} V3={oc.V3}")
+            if oc.OrderCode:
                 raw = oc.OrderCode
                 if isinstance(raw, bytes):
                     raw = raw.decode('ascii', errors='replace').strip().rstrip('\x00')
                 else:
                     raw = str(raw).strip()
-                order_code_raw = raw
+                if raw:
+                    order_code_raw = raw
             v_parts = []
             for attr in ('V1', 'V2', 'V3'):
                 v = getattr(oc, attr, 0)
-                if v is not None:
+                if v is not None and v >= 0:
                     v_parts.append(str(v))
             if v_parts and any(p != '0' for p in v_parts):
                 version = "V" + ".".join(v_parts)
         except Exception as e:
-            logger.debug(f"get_order_code failed: {e}")
+            logger.debug(f"get_order_code error: {e}")
 
         # ── 2) CPU Info ──
         try:
             cpu = self._client.get_cpu_info()
-            for key in ('ModuleTypeName', 'ModuleName'):
-                raw = cpu.get(key)
-                if raw:
-                    val = raw if isinstance(raw, str) else raw.decode('utf-8', errors='replace')
-                    val = val.strip().rstrip('\x00')
-                    if val and val.lower() != 'unknown' and len(val) > 1:
-                        module = val
-                        break
-            if not serial:
-                raw = cpu.get('SerialNumber')
-                if raw:
-                    serial = raw if isinstance(raw, str) else raw.decode('utf-8', errors='replace')
-                    serial = serial.strip().rstrip('\x00')
-            if not version:
-                raw = cpu.get('ASName')
-                if raw:
-                    v = raw if isinstance(raw, str) else raw.decode('utf-8', errors='replace')
-                    v = v.strip().rstrip('\x00')
-                    if v:
-                        version = v
-        except Exception as e:
-            logger.debug(f"get_cpu_info failed: {e}")
+            # dump all keys for debug
+            clean = {}
+            for k, v in cpu.items():
+                if isinstance(v, bytes):
+                    clean[k] = v.decode('utf-8', errors='replace').rstrip('\x00').strip()
+                else:
+                    clean[k] = str(v) if v else ''
+            logger.debug(f"get_cpu_info: {clean}")
 
-        # ── 3) SZL — S7-1200/1500 补充 ──
-        if not module or not serial:
+            for key in ('ModuleTypeName', 'ModuleName'):
+                val = clean.get(key, '')
+                if val and val.lower() != 'unknown' and len(val) > 1:
+                    module = val
+                    break
+            serial = clean.get('SerialNumber', '') or serial
+            version = clean.get('ASName', '') or version
+            version = clean.get('FirmwareVersion', '') or version
+        except Exception as e:
+            logger.debug(f"get_cpu_info error: {e}")
+
+        # ── 3) 多个 SZL 尝试 ──
+        szl_attempts = [
+            (0x0011, 1, "module_id"),
+            (0x0011, 6, "serial"),
+            (0x0131, 1, "firmware"),
+            (0x001C, 0, "component"),
+        ]
+        for ssl_id, index, label in szl_attempts:
             try:
-                # SZL 0x0011 index 1 = 模块标识
-                szl = self._client.read_szl(0x0011, 1)
+                szl = self._client.read_szl(ssl_id, index)
                 if szl and szl.Data:
                     data = bytes(szl.Data)
-                    # 格式: 20 bytes name + 4 bytes serial
-                    name_end = data.find(b'\x00')
-                    if name_end > 0 and not module:
-                        module = data[:name_end].decode('ascii', errors='replace').strip()
-                    if not serial and len(data) > 24:
-                        ser = data[24:48]
-                        ser_end = ser.find(b'\x00')
-                        if ser_end > 0:
-                            serial = ser[:ser_end].decode('ascii', errors='replace').strip()
+                    # trim trailing nulls
+                    text = data.rstrip(b'\x00').decode('ascii', errors='replace').strip()
+                    logger.debug(f"SZL 0x{ssl_id:04X}[{index}] ({label}): {text[:80]!r}")
+                    if label == "module_id" and not module and text:
+                        module = text
+                    elif label == "serial" and not serial and text:
+                        serial = text
+                    elif label == "firmware" and not version and text:
+                        version = text
+                    elif label == "component" and not module:
+                        # 0x001C often has format "6ES7 ..."
+                        for part in text.split():
+                            if part.startswith('6ES7'):
+                                order_code_raw = order_code_raw or part
+                                break
             except Exception as e:
-                logger.debug(f"read_szl failed: {e}")
+                logger.debug(f"SZL 0x{ssl_id:04X}[{index}] error: {e}")
 
-        # ── 合成最终结果 ──
+        # ── 合成 ──
         if order_code_raw:
             family = self._classify_order_code(order_code_raw)
             if family:
@@ -213,24 +223,17 @@ class PlcWorker(QThread):
         if not module:
             module = "未知型号"
 
-        logger.info(f"PLC identified: {module}  FW: {version or '?'}  S/N: {serial or '?'}")
+        logger.info(f"PLC: {module}  FW: {version or '?'}  S/N: {serial or '?'}")
         self.plc_info.emit(module, version or "", serial or "")
 
     @staticmethod
     def _classify_order_code(code: str) -> str:
-        """6ES7 214-... → S7-1200 系列"""
-        c = code.upper().replace(' ', '').replace('-', '')
-        m = re.search(r'6ES7(\d)', c)
+        """6ES7 214-... → S7-1200"""
+        m = re.search(r'6ES7[-\s]*(\d)', code.upper())
         if m:
             prefix = m.group(1)
-            if prefix == '2':
-                return 'S7-1200'
-            if prefix == '5':
-                return 'S7-1500'
-            if prefix == '3':
-                return 'S7-300'
-            if prefix == '4':
-                return 'S7-400'
+            return {'2': 'S7-1200', '5': 'S7-1500',
+                    '3': 'S7-300', '4': 'S7-400'}.get(prefix, '')
         return ""
 
     # ── 线程主循环 ──────────────────────────────────────
