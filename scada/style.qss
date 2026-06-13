@@ -93,18 +93,9 @@ QComboBox QAbstractItemView::item { padding: 6px 10px; border-radius: 4px; }
 
 /* ── 微调框 ────────────────────────────────────────── */
 QWidget#spinner {
-    background: #181b21; border: 1px solid #353a46; border-radius: 8px;
+    background: #181b21; border: 1px solid #353a46; border-radius: 6px;
 }
 QWidget#spinner:hover { border-color: #454a58; }
-QWidget#spinner QLineEdit#spinEdit {
-    background: transparent; border: none; border-radius: 8px 0 0 8px;
-    padding: 4px 10px; color: #e0e3ea; font-size: 15px; font-weight: 600;
-    font-family: "JetBrains Mono","Consolas",monospace;
-}
-QWidget#spinner QLineEdit#spinEdit:focus {
-    border: none; outline: none;
-    background: rgba(64, 136, 232, 0.06);
-}
 
 /* ── 按钮 ───────────────────────────────────────────── */
 QPushButton {
@@ -177,8 +168,9 @@ QLabel#sbScan         { color: #8b909e; padding: 0 10px; border-left: 1px solid 
 QLabel#sbTags         { color: #8b909e; padding: 0 10px; font-weight: 500; }
 
 /* ── 卡片 ───────────────────────────────────────────── */
-QFrame#panelCard  { background: #21252d; border: 1px solid #353a46; border-radius: 10px; }
-QFrame#valueCard  { background: #21252d; border: 1px solid #353a46; border-radius: 10px; }
+QFrame#panelCard   { background: #21252d; border: 1px solid #353a46; border-radius: 10px; }
+QFrame#paramsCard  { background: #1a1f29; border: 1px solid #2a3040; border-radius: 8px; }
+QFrame#valueCard   { background: #21252d; border: 1px solid #353a46; border-radius: 10px; }
 QFrame#valueCard:hover { border-color: #4088e8; background: #282d38; }
 QLabel#cardLabel     { color: #8b909e; font-size: 11px; font-weight: 600; }
 QLabel#cardValue     { color: #e0e3ea; font-family: "JetBrains Mono","Consolas",monospace; font-size: 24px; font-weight: 700; }

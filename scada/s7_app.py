@@ -371,18 +371,22 @@ class S7App(QMainWindow):
 
         self.sb_connection = QLabel(" 未连接")
         self.sb_connection.setObjectName("sbDisconnected")
+        self.sb_connection.setMinimumWidth(80)
         self.status_bar.addWidget(self.sb_connection)
 
         self.sb_plc_info = QLabel("")
         self.sb_plc_info.setObjectName("sbInfo")
+        self.sb_plc_info.setMaximumWidth(300)
         self.status_bar.addWidget(self.sb_plc_info)
 
-        self.sb_scan = QLabel("")
+        self.sb_scan = QLabel(" 扫描: -- ms")
         self.sb_scan.setObjectName("sbScan")
+        self.sb_scan.setMinimumWidth(120)
         self.status_bar.addPermanentWidget(self.sb_scan)
 
-        self.sb_tags = QLabel("标签: 0")
+        self.sb_tags = QLabel(" 标签: 0")
         self.sb_tags.setObjectName("sbTags")
+        self.sb_tags.setMinimumWidth(80)
         self.status_bar.addPermanentWidget(self.sb_tags)
 
     # ═══════════════════════════════════════════════════
