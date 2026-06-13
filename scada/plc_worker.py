@@ -149,13 +149,7 @@ class PlcWorker(QThread):
                     raw = str(raw).strip()
                 if raw:
                     order_code_raw = raw
-            v_parts = []
-            for attr in ('V1', 'V2', 'V3'):
-                v = getattr(oc, attr, 0)
-                if v is not None and v >= 0:
-                    v_parts.append(str(v))
-            if v_parts and any(p != '0' for p in v_parts):
-                version = "V" + ".".join(v_parts)
+            # V1/V2/V3 不是固件版本，跳过
         except Exception as e:
             logger.debug(f"get_order_code error: {e}")
 
@@ -195,29 +189,47 @@ class PlcWorker(QThread):
         for ssl_id, index, label in szl_attempts:
             try:
                 szl = self._client.read_szl(ssl_id, index)
-                if szl and szl.Data:
-                    data = bytes(szl.Data)
-                    # 按空字符切分，提取所有可读段
-                    segments = [s.decode('ascii', errors='replace').strip()
-                                for s in data.split(b'\x00')
-                                if len(s.strip(b'\x00')) > 1]
-                    logger.debug(f"SZL 0x{ssl_id:04X}[{index}] ({label}): {segments[:8]!r}")
+                if not szl or not szl.Data:
+                    continue
 
-                    for seg in segments:
-                        # 找 MLFB 订货号
-                        if re.match(r'6ES7[\s-]*\d', seg.upper()):
-                            order_code_raw = order_code_raw or seg.replace(' ', '')
-                            # 从 MLFB 直接解析型号名
-                            if not module:
-                                module = self._mlfb_to_name(order_code_raw)
+                data = bytes(szl.Data)
 
-                        # 找固件版本
-                        if not version and re.match(r'V\d+\.\d+', seg):
-                            version = seg
+                # 方式A: 按 null 切段
+                segments = [s.decode('ascii', errors='replace').strip()
+                            for s in data.split(b'\x00')
+                            if len(s.strip(b'\x00')) > 1]
+                logger.debug(f"SZL 0x{ssl_id:04X}[{index}] segments: {segments[:8]!r}")
 
-                        # 序列号（纯数字+字母，非 MLFB）
-                        if not serial and re.match(r'^[A-Z0-9]{6,24}$', seg) and not seg.startswith('6ES7'):
-                            serial = seg
+                # 方式B: 整段原文（去掉不可打印字符）
+                raw_text = data.decode('ascii', errors='replace')
+                clean_text = re.sub(r'[^\x20-\x7E]', '', raw_text)
+                logger.debug(f"SZL 0x{ssl_id:04X}[{index}] clean: {clean_text[:120]!r}")
+
+                # ── 从整段原文中提取 MLFB ──
+                mlfb_match = re.search(r'6ES7[\s\-]*\d[\d\s\-A-Za-z]*[\dA-Za-z]', clean_text)
+                if mlfb_match and not order_code_raw:
+                    order_code_raw = mlfb_match.group(0).replace(' ', '').replace('-', '')
+                    if not module:
+                        module = self._mlfb_to_name(order_code_raw)
+
+                # ── 从段中提取 ──
+                for seg in segments:
+                    # MLFB
+                    m = re.search(r'6ES7[\s\-]*\d\S*', seg.upper())
+                    if m and not order_code_raw:
+                        order_code_raw = m.group(0).replace(' ', '').replace('-', '')
+                        if not module:
+                            module = self._mlfb_to_name(order_code_raw)
+
+                    # 固件版本
+                    if not version:
+                        vm = re.search(r'V(\d+)\.(\d+)', seg)
+                        if vm:
+                            version = vm.group(0)
+
+                    # 序列号
+                    if not serial and re.match(r'^[A-Z0-9]{6,24}$', seg) and '6ES7' not in seg.upper():
+                        serial = seg
 
             except Exception as e:
                 logger.debug(f"SZL 0x{ssl_id:04X}[{index}] error: {e}")
