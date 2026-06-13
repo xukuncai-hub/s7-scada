@@ -93,9 +93,18 @@ QComboBox QAbstractItemView::item { padding: 6px 10px; border-radius: 4px; }
 
 /* ── 微调框 ────────────────────────────────────────── */
 QWidget#spinner {
-    background: #181b21; border: 1px solid #353a46; border-radius: 6px;
+    background: #181b21; border: 1px solid #353a46; border-radius: 8px;
 }
 QWidget#spinner:hover { border-color: #454a58; }
+QWidget#spinner QLineEdit#spinEdit {
+    background: transparent; border: none; border-radius: 8px 0 0 8px;
+    padding: 4px 8px; color: #e0e3ea; font-size: 14px; font-weight: 600;
+    font-family: "JetBrains Mono","Consolas",monospace;
+}
+QWidget#spinner QLineEdit#spinEdit:focus {
+    border: none; outline: none;
+    background: rgba(64, 136, 232, 0.06);
+}
 
 /* ── 按钮 ───────────────────────────────────────────── */
 QPushButton {

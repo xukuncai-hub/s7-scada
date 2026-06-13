@@ -438,11 +438,9 @@ class TagTableWidget(QWidget):
 
         # ── 底部状态 ──
         bottom = QHBoxLayout()
-        bottom.setContentsMargins(4, 0, 4, 4)
-        bottom.setSpacing(8)
+        bottom.setContentsMargins(4, 0, 4, 0)
         self.scan_info_label = QLabel("⏳ 等待连接...")
         self.scan_info_label.setObjectName("scanTime")
-        self.scan_info_label.setMinimumWidth(160)
         bottom.addWidget(self.scan_info_label)
         bottom.addStretch()
         layout.addLayout(bottom)

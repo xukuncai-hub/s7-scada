@@ -54,7 +54,7 @@ class _SpinArrowButton(QWidget):
         w, h = self.width(), self.height()
         c = current()
 
-        # ── 背景（圆角：上按钮圆右上，下按钮圆右下） ──
+        # ── 背景 ──
         if not self.isEnabled():
             bg = QColor(c.spin_btn_disabled_bg)
         elif self._pressed:
@@ -65,49 +65,36 @@ class _SpinArrowButton(QWidget):
             bg = QColor(c.spin_btn_bg)
 
         p.setBrush(QBrush(bg))
-        p.setPen(QPen(QColor(c.border), 1))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRect(0, 0, w, h)
 
-        rr = 5  # 圆角半径
-        path = QPainterPath()
-        if self._upward:
-            # 顶部圆角在右上
-            path.moveTo(0, h)
-            path.lineTo(0, rr)
-            path.arcTo(0, 0, rr * 2, rr * 2, 90, 90)
-            path.lineTo(w, 0)
-            path.lineTo(w, h)
+        # ── 箭头颜色 ──
+        if not self.isEnabled():
+            arrow_color = QColor(c.spin_arrow_disabled)
+        elif self._hover or self._pressed:
+            arrow_color = QColor(c.white)
         else:
-            # 底部圆角在右下
-            path.moveTo(0, 0)
-            path.lineTo(0, h)
-            path.lineTo(w, h)
-            path.lineTo(w, rr)
-            path.arcTo(w - rr * 2, h - rr * 2, rr * 2, rr * 2, 0, -90)
-        path.closeSubpath()
+            arrow_color = QColor(c.spin_arrow)
+
+        # ── 绘制 chevron 箭头 ──
+        cx, cy = w / 2.0, h / 2.0
+        if self._upward:
+            path = QPainterPath()
+            path.moveTo(cx, cy - 3.5)
+            path.lineTo(cx + 5, cy + 2.5)
+            path.lineTo(cx - 5, cy + 2.5)
+            path.closeSubpath()
+        else:
+            path = QPainterPath()
+            path.moveTo(cx, cy + 3.5)
+            path.lineTo(cx + 5, cy - 2.5)
+            path.lineTo(cx - 5, cy - 2.5)
+            path.closeSubpath()
+
+        p.setBrush(QBrush(arrow_color))
+        p.setPen(Qt.PenStyle.NoPen)
         p.drawPath(path)
 
-        # ── 箭头 ──
-        if not self.isEnabled():
-            ac = QColor(c.spin_arrow_disabled)
-        elif self._hover or self._pressed:
-            ac = QColor(c.white)
-        else:
-            ac = QColor(c.spin_arrow)
-
-        p.setBrush(QBrush(ac))
-        p.setPen(Qt.PenStyle.NoPen)
-        cx, cy = w / 2.0, h / 2.0
-        arrow = QPainterPath()
-        if self._upward:
-            arrow.moveTo(cx, cy - 2.5)
-            arrow.lineTo(cx + 3.5, cy + 1.8)
-            arrow.lineTo(cx - 3.5, cy + 1.8)
-        else:
-            arrow.moveTo(cx, cy + 2.5)
-            arrow.lineTo(cx + 3.5, cy - 1.8)
-            arrow.lineTo(cx - 3.5, cy - 1.8)
-        arrow.closeSubpath()
-        p.drawPath(arrow)
         p.end()
 
 
@@ -123,24 +110,17 @@ class Spinner(QWidget):
         self._max = max_val
 
         self.setObjectName("spinner")
-        self.setFixedHeight(34)
+        self.setFixedHeight(38)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        c = current()
         self.edit = QLineEdit(str(default))
         self.edit.setObjectName("spinEdit")
         self.edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.edit.setValidator(QIntValidator(min_val, max_val))
         self.edit.editingFinished.connect(self._on_edit)
-        self.edit.setStyleSheet(
-            f"QLineEdit {{ font-size: 13px; font-weight: 600; padding: 0 6px; "
-            f"background: {c.bg_input}; border: 1px solid {c.border}; "
-            f"border-right: none; border-radius: 6px 0 0 6px; "
-            f"color: {c.text_primary}; font-family: 'Consolas', monospace; }}"
-        )
         layout.addWidget(self.edit, stretch=1)
 
         btn_area = QVBoxLayout()
@@ -148,13 +128,15 @@ class Spinner(QWidget):
         btn_area.setSpacing(0)
 
         self.btn_up = _SpinArrowButton(upward=True)
-        self.btn_up.setFixedSize(28, 17)
+        self.btn_up.setObjectName("spinBtnUp")
+        self.btn_up.setFixedSize(32, 19)
         self.btn_up.setToolTip("增加")
         self.btn_up.clicked.connect(self._step_up)
         btn_area.addWidget(self.btn_up)
 
         self.btn_down = _SpinArrowButton(upward=False)
-        self.btn_down.setFixedSize(28, 17)
+        self.btn_down.setObjectName("spinBtnDown")
+        self.btn_down.setFixedSize(32, 19)
         self.btn_down.setToolTip("减少")
         self.btn_down.clicked.connect(self._step_down)
         btn_area.addWidget(self.btn_down)
@@ -278,73 +260,110 @@ class ConnectionPanel(QGroupBox):
         self._setup_ui()
 
     def _setup_ui(self):
-        c = current()
-        LBL = f"color: {c.text_secondary}; font-size: 11px; font-weight: 600;"
-
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
-        layout.setContentsMargins(14, 20, 14, 12)
+        layout.setContentsMargins(14, 20, 14, 14)
 
         # ═══════════════════════════════════════════
-        #  LED + 状态 + IP
+        # 顶部：LED + 状态 + IP
         # ═══════════════════════════════════════════
-        status_card = QFrame()
-        status_card.setObjectName("panelCard")
-        sc = QHBoxLayout(status_card)
-        sc.setContentsMargins(14, 12, 14, 12)
-        sc.setSpacing(12)
+        # ── 状态卡片 ──
+        card = QFrame()
+        card.setObjectName("panelCard")
+        card_layout = QHBoxLayout(card)
+        card_layout.setContentsMargins(14, 12, 14, 12)
+        card_layout.setSpacing(12)
 
+        # LED
         self.led = LedIndicator()
-        sc.addWidget(self.led)
+        card_layout.addWidget(self.led)
 
-        v = QVBoxLayout()
-        v.setSpacing(2)
+        # IP + 状态
+        text_col = QVBoxLayout()
+        text_col.setSpacing(2)
         self.ip_display = QLabel("192.168.0.1")
         self.ip_display.setObjectName("ipDisplay")
-        v.addWidget(self.ip_display)
-        self.status_label = QLabel("未连接")
+        text_col.addWidget(self.ip_display)
+
+        self.status_label = QLabel(" 未连接")
         self.status_label.setObjectName("statusDisconnected")
-        v.addWidget(self.status_label)
-        sc.addLayout(v, stretch=1)
+        text_col.addWidget(self.status_label)
+        card_layout.addLayout(text_col)
+        card_layout.addStretch()
 
         self.plc_type_label = QLabel("")
-        self.plc_type_label.setStyleSheet(
-            f"color:{c.text_dim}; font-size:10px; font-weight:500;")
-        sc.addWidget(self.plc_type_label)
-        layout.addWidget(status_card)
+        self.plc_type_label.setStyleSheet(f"color:{current().text_dim}; font-size:10.5px; font-weight:500;")
+        card_layout.addWidget(self.plc_type_label)
+
+        layout.addWidget(card)
 
         # ═══════════════════════════════════════════
-        #  IP 地址
+        # IP 地址输入
         # ═══════════════════════════════════════════
+        ip_row = QHBoxLayout()
+        ip_row.setSpacing(10)
+
+        ip_icon = QLabel("🌐")
+        ip_icon.setFixedWidth(20)
+        ip_icon.setStyleSheet("font-size: 14px;")
+        ip_row.addWidget(ip_icon)
+
         self.ip_input = QLineEdit("192.168.0.1")
-        self.ip_input.setPlaceholderText("PLC IP 地址...")
+        self.ip_input.setPlaceholderText("输入 PLC IP 地址...")
         self.ip_input.setMinimumHeight(38)
-        layout.addWidget(self.ip_input)
+        ip_row.addWidget(self.ip_input)
+
+        layout.addLayout(ip_row)
 
         # ═══════════════════════════════════════════
-        #  Rack / Slot / 扫描间隔
+        # Rack / Slot 一排
         # ═══════════════════════════════════════════
-        grid = QHBoxLayout()
-        grid.setSpacing(12)
+        rs_row = QHBoxLayout()
+        rs_row.setSpacing(12)
 
+        # Rack
+        rack_group = QVBoxLayout()
+        rack_group.setSpacing(3)
+        rack_lbl = QLabel("Rack")
+        rack_lbl.setStyleSheet(f"color: {current().text_secondary}; font-size: 11px; font-weight: 600;")
+        rack_group.addWidget(rack_lbl)
         self.rack_spin = Spinner(0, 31, 0)
-        self.rack_spin.setToolTip("S7-1200 → 0\nS7-1500 → 0")
-        grid.addWidget(self._labeled("Rack", self.rack_spin, LBL), stretch=1)
+        self.rack_spin.setToolTip("S7-1200: Rack=0\nS7-1500: Rack=0")
+        rack_group.addWidget(self.rack_spin)
+        rs_row.addLayout(rack_group)
 
+        # Slot
+        slot_group = QVBoxLayout()
+        slot_group.setSpacing(3)
+        slot_lbl = QLabel("Slot")
+        slot_lbl.setStyleSheet(f"color: {current().text_secondary}; font-size: 11px; font-weight: 600;")
+        slot_group.addWidget(slot_lbl)
         self.slot_spin = Spinner(0, 31, 1)
-        self.slot_spin.setToolTip("S7-1200 → 1\nS7-1500 → 1")
-        grid.addWidget(self._labeled("Slot", self.slot_spin, LBL), stretch=1)
+        self.slot_spin.setToolTip("S7-1200: Slot=1\nS7-1500: Slot=1")
+        slot_group.addWidget(self.slot_spin)
+        rs_row.addLayout(slot_group)
 
+        # 扫描间隔 (ms)
+        scan_group = QVBoxLayout()
+        scan_group.setSpacing(3)
+        scan_lbl = QLabel("扫描间隔 (ms)")
+        scan_lbl.setStyleSheet(f"color: {current().text_secondary}; font-size: 11px; font-weight: 600;")
+        scan_group.addWidget(scan_lbl)
         self.scan_spin = Spinner(50, 10000, 500)
-        self.scan_spin.setToolTip("数据刷新间隔 (ms)")
-        grid.addWidget(self._labeled("扫描间隔", self.scan_spin, LBL), stretch=2)
-        layout.addLayout(grid)
+        self.scan_spin.setToolTip("数据刷新间隔 50~10000 毫秒")
+        self.scan_spin.setMinimumWidth(110)
+        scan_group.addWidget(self.scan_spin)
+        rs_row.addLayout(scan_group)
+
+        rs_row.addStretch()
+        layout.addLayout(rs_row)
 
         # ═══════════════════════════════════════════
-        #  按钮
+        # 按钮行
         # ═══════════════════════════════════════════
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
+
         self.btn_connect = QPushButton("🔌  连接 PLC")
         self.btn_connect.setObjectName("btnConnect")
         self.btn_connect.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -363,28 +382,16 @@ class ConnectionPanel(QGroupBox):
         layout.addLayout(btn_row)
 
         # ═══════════════════════════════════════════
-        #  PLC 信息
+        # PLC 信息行
         # ═══════════════════════════════════════════
         self.info_label = QLabel("")
         self.info_label.setStyleSheet(
-            f"color: {c.text_dim}; font-size: 10.5px; padding: 2px 4px;")
+            f"color: {current().text_dim}; font-size: 11px; padding: 4px 6px;"
+        )
         self.info_label.setWordWrap(True)
         layout.addWidget(self.info_label)
 
         layout.addStretch()
-
-    @staticmethod
-    def _labeled(title: str, widget: QWidget, lbl_style: str) -> QWidget:
-        w = QWidget()
-        w.setStyleSheet("background: transparent;")
-        lay = QVBoxLayout(w)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(4)
-        lb = QLabel(title)
-        lb.setStyleSheet(lbl_style)
-        lay.addWidget(lb)
-        lay.addWidget(widget)
-        return w
 
     def _on_connect_clicked(self):
         ip = self.ip_input.text().strip()
