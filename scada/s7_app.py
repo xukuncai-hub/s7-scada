@@ -438,7 +438,7 @@ class S7App(QMainWindow):
             self.statusBar().setVisible(True)
         else:
             self._saved_title = self.windowTitle()
-            self.setWindowTitle("")
+            self.setWindowTitle(" ")
             self._fullscreen = True
             self.menuBar().setVisible(False)
             self._tb.setVisible(False)
