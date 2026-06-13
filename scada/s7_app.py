@@ -69,6 +69,7 @@ class S7App(QMainWindow):
     def __init__(self):
         super().__init__()
         self._tags: list[TagConfig] = []
+        self._fullscreen = False
 
         self.setWindowTitle(f"{APP_NAME} v{APP_VERSION} - PLC 上位机")
         self.setMinimumSize(1100, 720)
@@ -398,12 +399,6 @@ class S7App(QMainWindow):
     # ═══════════════════════════════════════════════════
 
     def changeEvent(self, event):
-        """最大化→无边框全屏"""
-        if event.type() == event.Type.WindowStateChange:
-            if self.windowState() & Qt.WindowState.WindowMaximized:
-                self.setWindowState(
-                    self.windowState() & ~Qt.WindowState.WindowMaximized)
-                self.showFullScreen()
         super().changeEvent(event)
 
     def closeEvent(self, event):
@@ -427,32 +422,24 @@ class S7App(QMainWindow):
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_F11:
             self._toggle_fullscreen()
-        elif event.key() == Qt.Key.Key_Escape and self.isFullScreen():
+        elif event.key() == Qt.Key.Key_Escape and self._fullscreen:
             self._toggle_fullscreen()
         else:
             super().keyPressEvent(event)
 
     def _toggle_fullscreen(self):
-        if self.isFullScreen():
+        if self._fullscreen:
+            self._fullscreen = False
             self.showNormal()
-            self._fs_controls.hide()
             self.menuBar().setVisible(True)
             self._tb.setVisible(True)
+            self.statusBar().setVisible(True)
         else:
+            self._fullscreen = True
             self.menuBar().setVisible(False)
             self._tb.setVisible(False)
-            self.showFullScreen()
-            QTimer.singleShot(200, self._show_fs_controls)
-
-    def _show_fs_controls(self):
-        self._position_fs_controls()
-        self._fs_controls.show()
-        self._fs_controls.raise_()
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        if self.isFullScreen():
-            self._position_fs_controls()
+            self.statusBar().setVisible(False)
+            self.showMaximized()
 
     # ── 系统托盘 ────────────────────────────────────────
 
