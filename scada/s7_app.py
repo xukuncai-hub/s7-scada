@@ -421,7 +421,6 @@ class S7App(QMainWindow):
         self._save_config()
         if self.plc_worker.isRunning():
             self.plc_worker.stop()
-        self._fs_controls.close()
         self._tray.hide()
         QApplication.instance().quit()
 
@@ -443,8 +442,17 @@ class S7App(QMainWindow):
             self.menuBar().setVisible(False)
             self._tb.setVisible(False)
             self.showFullScreen()
+            QTimer.singleShot(200, self._show_fs_controls)
+
+    def _show_fs_controls(self):
+        self._position_fs_controls()
+        self._fs_controls.show()
+        self._fs_controls.raise_()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self.isFullScreen():
             self._position_fs_controls()
-            self._fs_controls.show()
 
     # ── 系统托盘 ────────────────────────────────────────
 
@@ -485,67 +493,51 @@ class S7App(QMainWindow):
     # ── 全屏悬浮控件 ────────────────────────────────────
 
     def _make_fs_controls(self) -> QWidget:
-        """全屏右上角 悬浮工具窗口"""
+        """全屏右上角按钮栏 — 直接画在窗口上"""
         c = current()
-        bar = QWidget()
-        bar.setWindowFlags(
-            Qt.WindowType.Tool |
-            Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint
-        )
-        bar.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+        bar = QWidget(self)
         bar.setObjectName("fsControls")
-        bar.setFixedSize(160, 36)
         bar.setStyleSheet(
             f"QWidget#fsControls {{ background: {c.bg_panel}; border: 1px solid {c.border}; border-radius: 8px; }}"
         )
+        bar.hide()
 
         lay = QHBoxLayout(bar)
-        lay.setContentsMargins(4, 2, 4, 2)
-        lay.setSpacing(6)
+        lay.setContentsMargins(6, 4, 6, 4)
+        lay.setSpacing(4)
 
         btn_style = (
             "QPushButton { background: transparent; border: none; color: %s; "
-            "font-size: 16px; padding: 4px 10px; border-radius: 4px; }"
+            "font-size: 12px; padding: 4px 8px; border-radius: 4px; }"
             "QPushButton:hover { background: %s; }"
         )
 
-        btn_min = QPushButton("─")
-        btn_min.setToolTip("最小化")
+        btn_min = QPushButton("最小化")
         btn_min.setStyleSheet(btn_style % (c.text_primary, c.border))
         btn_min.clicked.connect(lambda: self.showMinimized())
         lay.addWidget(btn_min)
 
-        btn_restore = QPushButton("◱")
-        btn_restore.setToolTip("退出全屏")
+        btn_restore = QPushButton("退出全屏")
         btn_restore.setStyleSheet(btn_style % (c.text_primary, c.border))
         btn_restore.clicked.connect(self._toggle_fullscreen)
         lay.addWidget(btn_restore)
 
-        btn_quit = QPushButton("✕")
-        btn_quit.setToolTip("退出软件")
-        btn_quit.setStyleSheet(btn_style % (c.text_primary, c.danger) +
-                               "QPushButton:hover { background: %s; color: #fff; }" % c.danger)
+        btn_quit = QPushButton(" 关闭 ")
+        btn_quit.setStyleSheet(
+            btn_style % (c.text_primary, c.danger) +
+            "QPushButton:hover { background: %s; color: #fff; }" % c.danger)
         btn_quit.clicked.connect(self._quit_app)
         lay.addWidget(btn_quit)
 
         return bar
 
     def _position_fs_controls(self):
-        """全屏控件定位右上角（屏幕坐标）"""
         bar = self._fs_controls
-        geo = self.geometry()
-        bar.move(geo.right() - bar.width() - 12, geo.top() + 8)
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        if self.isFullScreen():
-            self._position_fs_controls()
-
-    def moveEvent(self, event):
-        super().moveEvent(event)
-        if self.isFullScreen():
-            self._position_fs_controls()
+        bar.adjustSize()
+        w = bar.sizeHint().width() + 12
+        bar.setParent(self.centralWidget())
+        bar.setGeometry(self.centralWidget().width() - w - 6, 6, w, 34)
+        bar.raise_()
 
     # ── 主题切换 ────────────────────────────────────────
     _light = True  # 默认浅色模式
