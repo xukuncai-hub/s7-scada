@@ -183,7 +183,7 @@ class PlcWorker(QThread):
                 # 主扫描循环
                 while self._running and not self._paused:
                     if not self._client.get_connected():
-                        self.disconnected.emit("Connection lost")
+                        self.disconnected.emit("连接断开")
                         break
 
                     self._mutex.lock()
@@ -213,7 +213,7 @@ class PlcWorker(QThread):
 
             except S7Error as e:
                 logger.error(f"PLC error: {e}")
-                self.disconnected.emit(str(e))
+                self.disconnected.emit("")
                 try:
                     self._client.disconnect()
                 except Exception:
@@ -233,7 +233,7 @@ class PlcWorker(QThread):
                 self._client.disconnect()
         except Exception:
             pass
-        self.disconnected.emit("Worker stopped")
+        self.disconnected.emit("")
 
     # ── 标签扫描 ─────────────────────────────────────────
 
