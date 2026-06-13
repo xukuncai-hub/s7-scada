@@ -206,18 +206,19 @@ class PlcWorker(QThread):
                 logger.debug(f"SZL 0x{ssl_id:04X}[{index}] clean: {clean_text[:120]!r}")
 
                 # ── 从整段原文中提取 MLFB ──
-                mlfb_match = re.search(r'6ES7[\s\-]*\d[\d\s\-A-Za-z]*[\dA-Za-z]', clean_text)
+                mlfb_match = re.search(r'6ES7[\s\-]*\d[\s\-]*\d{2}[\s\-]*[0-9A-Za-z]+(?:[\s\-]+[0-9A-Za-z]+)*', clean_text)
                 if mlfb_match and not order_code_raw:
-                    order_code_raw = mlfb_match.group(0).replace(' ', '').replace('-', '')
+                    raw_mlfb = mlfb_match.group(0)
+                    order_code_raw = re.sub(r'\s+', '', raw_mlfb)  # 去空格，保留连字符
                     if not module:
                         module = self._mlfb_to_name(order_code_raw)
 
                 # ── 从段中提取 ──
                 for seg in segments:
-                    # MLFB
-                    m = re.search(r'6ES7[\s\-]*\d\S*', seg.upper())
+                    m = re.search(r'6ES7[\s\-]*\d[\s\-]*\d{2}[\s\-]*[0-9A-Za-z]+(?:[\s\-]+[0-9A-Za-z]+)*', seg.upper())
                     if m and not order_code_raw:
-                        order_code_raw = m.group(0).replace(' ', '').replace('-', '')
+                        raw_mlfb = m.group(0)
+                        order_code_raw = re.sub(r'\s+', '', raw_mlfb)
                         if not module:
                             module = self._mlfb_to_name(order_code_raw)
 
@@ -261,12 +262,13 @@ class PlcWorker(QThread):
     @staticmethod
     def _mlfb_to_name(mlfb: str) -> str:
         """6ES7516-3AN01-0AB0 → S7-1516"""
-        m = re.search(r'6ES7\s*(\d)(\d{2})', mlfb.upper().replace('-', ''))
+        m = re.search(r'6ES7\s*(\d)(\d{2})', mlfb.upper().replace('-', '').replace(' ', ''))
         if m:
-            family = {'2': 'S7-1200', '5': 'S7-1500',
-                      '3': 'S7-300', '4': 'S7-400'}.get(m.group(1), 'S7')
+            family_num = m.group(1)
             model = m.group(2)
-            return f"{family} CPU {model}"
+            family = {'2': 'S7-1200', '5': 'S7-1500',
+                      '3': 'S7-300', '4': 'S7-400'}.get(family_num, 'S7')
+            return f"{family} CPU {family_num}{model}"
         return mlfb
 
     # ── 线程主循环 ──────────────────────────────────────
