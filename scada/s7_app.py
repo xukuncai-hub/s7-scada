@@ -70,6 +70,7 @@ class S7App(QMainWindow):
         super().__init__()
         self._tags: list[TagConfig] = []
         self._fullscreen = False
+        self._saved_title = ""
 
         self.setWindowTitle(f"{APP_NAME} v{APP_VERSION} - PLC 上位机")
         self.setMinimumSize(1100, 720)
@@ -430,11 +431,14 @@ class S7App(QMainWindow):
     def _toggle_fullscreen(self):
         if self._fullscreen:
             self._fullscreen = False
+            self.setWindowTitle(self._saved_title)
             self.showNormal()
             self.menuBar().setVisible(True)
             self._tb.setVisible(True)
             self.statusBar().setVisible(True)
         else:
+            self._saved_title = self.windowTitle()
+            self.setWindowTitle("")
             self._fullscreen = True
             self.menuBar().setVisible(False)
             self._tb.setVisible(False)
