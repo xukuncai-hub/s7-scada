@@ -184,70 +184,54 @@ class PlcWorker(QThread):
 
         # ── 3) 多个 SZL 尝试 ──
         szl_attempts = [
-            (0x0011, 0, "cpu_basic"),        # CPU 基本信息
-            (0x0011, 1, "module_id"),        # 模块名 + 序列号
-            (0x0011, 6, "serial"),           # 序列号
-            (0x0011, 7, "fw_version"),       # 固件版本
-            (0x0131, 1, "fw_detail"),        # 固件详细信息
-            (0x001C, 1, "component_id"),     # 组件标识 (含 MLFB)
-            (0x0111, 1, "hw_id"),            # 硬件标识
+            (0x0011, 0, "cpu_basic"),
+            (0x0011, 1, "module_id"),
+            (0x0011, 6, "serial"),
+            (0x0011, 7, "fw_version"),
+            (0x0131, 1, "fw_detail"),
+            (0x001C, 1, "component_id"),
+            (0x0111, 1, "hw_id"),
         ]
         for ssl_id, index, label in szl_attempts:
             try:
                 szl = self._client.read_szl(ssl_id, index)
                 if szl and szl.Data:
                     data = bytes(szl.Data)
-                    text = data.rstrip(b'\x00').decode('ascii', errors='replace').strip()
-                    logger.debug(f"SZL 0x{ssl_id:04X}[{index}] ({label}): {text[:100]!r}")
+                    # 按空字符切分，提取所有可读段
+                    segments = [s.decode('ascii', errors='replace').strip()
+                                for s in data.split(b'\x00')
+                                if len(s.strip(b'\x00')) > 1]
+                    logger.debug(f"SZL 0x{ssl_id:04X}[{index}] ({label}): {segments[:8]!r}")
 
-                    if label in ("module_id", "cpu_basic") and not module and text:
-                        # 提取第一个有意义文本段
-                        parts = text.replace('\x00', ' ').split()
-                        for p in parts:
-                            if len(p) > 1 and not p.startswith('6ES7'):
-                                module = p
-                                break
-                        if not module and parts:
-                            module = parts[0]
+                    for seg in segments:
+                        # 找 MLFB 订货号
+                        if re.match(r'6ES7[\s-]*\d', seg.upper()):
+                            order_code_raw = order_code_raw or seg.replace(' ', '')
+                            # 从 MLFB 直接解析型号名
+                            if not module:
+                                module = self._mlfb_to_name(order_code_raw)
 
-                    if label == "serial" and not serial and text:
-                        serial = text
+                        # 找固件版本
+                        if not version and re.match(r'V\d+\.\d+', seg):
+                            version = seg
 
-                    if label in ("fw_version", "fw_detail") and not version and text:
-                        v = text.strip()
-                        if len(v) < 32:
-                            version = v
-
-                    if label in ("component_id", "hw_id"):
-                        # 查找 MLFB 订货号
-                        for token in text.replace(',', ' ').split():
-                            token = token.strip()
-                            if re.match(r'6ES7[\s-]*\d', token.upper()):
-                                order_code_raw = order_code_raw or token
-                                break
-
-                    if label == "cpu_basic" and text:
-                        # 有时直接就是 "S7-1500" 这样的文本
-                        for keyword in ('S7-1200', 'S7-1500', 'S7-300', 'S7-400',
-                                        'CPU 1511', 'CPU 1512', 'CPU 1513',
-                                        'CPU 1515', 'CPU 1516', 'CPU 1517', 'CPU 1518'):
-                            if keyword.upper() in text.upper():
-                                module = module or keyword
-                                break
+                        # 序列号（纯数字+字母，非 MLFB）
+                        if not serial and re.match(r'^[A-Z0-9]{6,24}$', seg) and not seg.startswith('6ES7'):
+                            serial = seg
 
             except Exception as e:
                 logger.debug(f"SZL 0x{ssl_id:04X}[{index}] error: {e}")
 
         # ── 合成 ──
-        if order_code_raw:
-            family = self._classify_order_code(order_code_raw)
-            if family:
-                module = f"{family} ({order_code_raw})"
-            elif not module:
-                module = order_code_raw
+        if order_code_raw and not module:
+            module = self._mlfb_to_name(order_code_raw)
 
         if not module:
             module = "未知型号"
+
+        # 格式化显示：S7-1516 (6ES7516-3AN01-0AB0)
+        if order_code_raw and module != "未知型号":
+            module = f"{module} ({order_code_raw})"
 
         logger.info(f"PLC: {module}  FW: {version or '?'}  S/N: {serial or '?'}")
         self.plc_info.emit(module, version or "", serial or "")
@@ -261,6 +245,17 @@ class PlcWorker(QThread):
             return {'2': 'S7-1200', '5': 'S7-1500',
                     '3': 'S7-300', '4': 'S7-400'}.get(prefix, '')
         return ""
+
+    @staticmethod
+    def _mlfb_to_name(mlfb: str) -> str:
+        """6ES7516-3AN01-0AB0 → S7-1516"""
+        m = re.search(r'6ES7\s*(\d)(\d{2})', mlfb.upper().replace('-', ''))
+        if m:
+            family = {'2': 'S7-1200', '5': 'S7-1500',
+                      '3': 'S7-300', '4': 'S7-400'}.get(m.group(1), 'S7')
+            model = m.group(2)
+            return f"{family} CPU {model}"
+        return mlfb
 
     # ── 线程主循环 ──────────────────────────────────────
 
