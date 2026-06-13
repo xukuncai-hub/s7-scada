@@ -26,4 +26,4 @@ Thumbs.db
 .claude/
 
 # User config (sensitive)
-s7_tags.json
+scada/s7_tags.json
