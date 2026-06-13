@@ -94,7 +94,7 @@ class S7App(QMainWindow):
 
         # ── 全屏悬浮控制栏 ──
         self._fs_controls = self._make_fs_controls()
-        self._fs_controls.setVisible(False)
+        # 默认隐藏，全屏时 show()
 
         # ── 加载配置 ──
         self._load_config()
@@ -421,6 +421,7 @@ class S7App(QMainWindow):
         self._save_config()
         if self.plc_worker.isRunning():
             self.plc_worker.stop()
+        self._fs_controls.close()
         self._tray.hide()
         QApplication.instance().quit()
 
@@ -435,15 +436,15 @@ class S7App(QMainWindow):
     def _toggle_fullscreen(self):
         if self.isFullScreen():
             self.showNormal()
-            self._fs_controls.setVisible(False)
+            self._fs_controls.hide()
             self.menuBar().setVisible(True)
             self._tb.setVisible(True)
         else:
             self.menuBar().setVisible(False)
             self._tb.setVisible(False)
             self.showFullScreen()
-            self._fs_controls.setVisible(True)
             self._position_fs_controls()
+            self._fs_controls.show()
 
     # ── 系统托盘 ────────────────────────────────────────
 
@@ -484,13 +485,19 @@ class S7App(QMainWindow):
     # ── 全屏悬浮控件 ────────────────────────────────────
 
     def _make_fs_controls(self) -> QWidget:
-        """全屏右上角：最小化 / 关闭 按钮"""
+        """全屏右上角 悬浮工具窗口"""
         c = current()
-        bar = QWidget(self)
+        bar = QWidget()
+        bar.setWindowFlags(
+            Qt.WindowType.Tool |
+            Qt.WindowType.FramelessWindowHint |
+            Qt.WindowType.WindowStaysOnTopHint
+        )
+        bar.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
         bar.setObjectName("fsControls")
-        bar.setFixedHeight(36)
+        bar.setFixedSize(160, 36)
         bar.setStyleSheet(
-            f"QWidget#fsControls {{ background: {c.bg_panel}; border-radius: 6px; }}"
+            f"QWidget#fsControls {{ background: {c.bg_panel}; border: 1px solid {c.border}; border-radius: 8px; }}"
         )
 
         lay = QHBoxLayout(bar)
@@ -525,14 +532,18 @@ class S7App(QMainWindow):
         return bar
 
     def _position_fs_controls(self):
-        """全屏控件定位右上角"""
+        """全屏控件定位右上角（屏幕坐标）"""
         bar = self._fs_controls
-        bar.setFixedWidth(150)
-        bar.move(self.width() - bar.width() - 12, 8)
-        bar.raise_()
+        geo = self.geometry()
+        bar.move(geo.right() - bar.width() - 12, geo.top() + 8)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        if self.isFullScreen():
+            self._position_fs_controls()
+
+    def moveEvent(self, event):
+        super().moveEvent(event)
         if self.isFullScreen():
             self._position_fs_controls()
 
