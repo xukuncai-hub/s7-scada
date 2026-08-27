@@ -811,6 +811,14 @@ function closeWriteValue() {
     writeTargetIndex = -1;
 }
 
+// ── About ─────────────────────────────────────────────────────
+function openAbout() {
+    document.getElementById('aboutModal').classList.add('visible');
+}
+function closeAbout() {
+    document.getElementById('aboutModal').classList.remove('visible');
+}
+
 function confirmWriteValue() {
     var input = document.getElementById('writeValueInput').value.trim();
     if (!input) {
@@ -895,6 +903,9 @@ document.addEventListener('keydown', function (e) {
         if (document.getElementById('writeValueModal').classList.contains('visible')) {
             closeWriteValue();
         }
+        if (document.getElementById('aboutModal').classList.contains('visible')) {
+            closeAbout();
+        }
     }
 
     if (e.key === 'Enter') {
@@ -930,6 +941,9 @@ document.getElementById('tagEditorModal').addEventListener('click', function (e)
 });
 document.getElementById('writeValueModal').addEventListener('click', function (e) {
     if (e.target === e.currentTarget) closeWriteValue();
+});
+document.getElementById('aboutModal').addEventListener('click', function (e) {
+    if (e.target === e.currentTarget) closeAbout();
 });
 
 // ══ 画面编辑器 ══════════════════════════════════════════════

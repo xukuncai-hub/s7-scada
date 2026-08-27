@@ -377,6 +377,8 @@ Right-click for context menu</div>
             <span id="statusPlcInfo"></span>
         </div>
         <div class="sb-right">
+            <span class="sb-item sb-about" id="btnAbout" onclick="openAbout()" title="关于软件">关于</span>
+            <span class="sb-sep">|</span>
             <span class="sb-item" id="statusScanTime">--</span>
             <span class="sb-sep">|</span>
             <span class="sb-item" id="statusTagCount">Tags: 0</span>
@@ -502,6 +504,34 @@ Right-click for context menu</div>
             <div class="modal-foot">
                 <button class="btn btn-ghost" onclick="closeWriteValue()">Cancel</button>
                 <button class="btn btn-blue" onclick="confirmWriteValue()">Write</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- About Modal -->
+    <div class="modal-overlay" id="aboutModal">
+        <div class="modal modal-sm">
+            <div class="modal-head">
+                <h3 class="modal-title">关于 S7 SCADA</h3>
+                <button class="modal-x" onclick="closeAbout()">&times;</button>
+            </div>
+            <div class="modal-body about-body">
+                <div class="about-logo">S7</div>
+                <div class="about-name">S7 SCADA</div>
+                <div class="about-ver">版本 v1.0</div>
+                <div class="about-desc">基于 C# WPF + WebView2 的西门子 S7 上位机监控软件</div>
+                <div class="about-rows">
+                    <div class="about-row"><span class="about-k">作者</span><span class="about-v">xukuncai</span></div>
+                    <div class="about-row"><span class="about-k">邮箱</span><span class="about-v">xukuncai0001@gmail.com</span></div>
+                    <div class="about-row"><span class="about-k">技术栈</span><span class="about-v">C# / WPF / WebView2 / S7netplus</span></div>
+                    <div class="about-row"><span class="about-k">源码</span>
+                        <a class="about-link" href="https://github.com/xukuncai-hub/s7-scada" target="_blank">github.com/xukuncai-hub/s7-scada</a>
+                    </div>
+                </div>
+                <div class="about-license">仅供学习与内部使用</div>
+            </div>
+            <div class="modal-foot">
+                <button class="btn btn-blue" onclick="closeAbout()">关闭</button>
             </div>
         </div>
     </div>

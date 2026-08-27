@@ -1254,6 +1254,94 @@ select.field-input {
     color: var(--text-4);
 }
 
+.sb-about {
+    cursor: pointer;
+    color: var(--text-3);
+    transition: color 0.15s;
+}
+.sb-about:hover {
+    color: var(--blue);
+}
+
+/* ── About 对话框 ────────────────────────────────────────────── */
+.about-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 4px;
+}
+.about-logo {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #fff;
+    font-size: 22px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+    box-shadow: 0 4px 14px rgba(37,99,235,0.35);
+}
+.about-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-1);
+}
+.about-ver {
+    font-size: 12px;
+    color: var(--text-4);
+    font-family: var(--font-mono);
+    margin-bottom: 6px;
+}
+.about-desc {
+    font-size: 12px;
+    color: var(--text-2);
+    margin-bottom: 14px;
+    line-height: 1.6;
+}
+.about-rows {
+    width: 100%;
+    background: var(--elevated);
+    border: 1px solid var(--overlay);
+    border-radius: var(--r-md);
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: left;
+}
+.about-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    gap: 12px;
+}
+.about-k {
+    color: var(--text-3);
+    flex-shrink: 0;
+}
+.about-v {
+    color: var(--text-1);
+    text-align: right;
+    word-break: break-all;
+}
+.about-link {
+    color: var(--blue);
+    text-decoration: none;
+}
+.about-link:hover {
+    text-decoration: underline;
+}
+.about-license {
+    margin-top: 12px;
+    font-size: 11px;
+    color: var(--text-4);
+}
+
 .sb-sep {
     color: var(--overlay);
     font-size: 10px;
