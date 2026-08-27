@@ -29,3 +29,7 @@ Thumbs.db
 # User config (sensitive)
 s7_tags.json
 screens.json
+
+# Publish output
+publish/
+*.zip

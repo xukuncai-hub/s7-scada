@@ -1,9 +1,0 @@
-2026-08-27 20:09:17.498: [INFO] CurrentProfilePath: D:\Users\song\Documents\C#\s7\publish\WebView2Data\EBWebView\Default
-2026-08-27 20:09:17.498: [INFO] Profiles total count: 1
-2026-08-27 20:09:17.498: [INFO] Profile: name=用户配置 1 path=D:\Users\song\Documents\C#\s7\publish\WebView2Data\EBWebView\Default lastActive=null
-2026-08-27 20:09:17.498: [INFO] LastUsedProfileDir: D:\Users\song\Documents\C#\s7\publish\WebView2Data\EBWebView\Default
-2026-08-27 20:09:17.498: [INFO] OnDoneLoading sync enabled: 0
-2026-08-27 20:09:17.498: [INFO] BookmarkModelLoaded, ids_reassigned: 0
-2026-08-27 20:09:17.498: [INFO] BookmarksLoadDropped droppedNodes=0
-2026-08-27 20:09:17.498: [INFO] BookmarksSnapshot Startup total=0 bar=0 other=0 mobile=0 showBar=0 showBarNTP=1
-2026-08-27 20:09:33.932: [INFO] BookmarksSnapshot Shutdown total=0 bar=0 other=0 mobile=0 showBar=0 showBarNTP=1
